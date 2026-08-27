@@ -20,13 +20,13 @@ export interface Translations {
   easyMode: string;
   proMode: string;
   easyModeDesc: string;
-  
+
   // Tabs
   tabAlign: string;
   tabFrames: string;
   tabFilters: string;
   tabQuote: string;
-  
+
   // Align / Realign
   zoom: string;
   rotate: string;
@@ -53,14 +53,14 @@ export interface Translations {
   zoomBigger: string;
   zoomSmaller: string;
   rotateRight: string;
-  
+
   // Frames
   selectFrame: string;
   mattingTitle: string;
   enableMatting: string;
   mattingSize: string;
   mattingColor: string;
-  
+
   // Filters
   filterPreset: string;
   brightness: string;
@@ -68,7 +68,7 @@ export interface Translations {
   warmth: string;
   vignette: string;
   glassReflect: string;
-  
+
   // Quote / Text
   quoteToggle: string;
   quoteToggleDesc: string;
@@ -93,7 +93,7 @@ export interface Translations {
   resPrint: string;
   fileFormat: string;
   generating: string;
-  
+
   // Sample picker
   sampleTitle: string;
   sampleSub: string;
@@ -102,7 +102,7 @@ export interface Translations {
 
 export const translations: Record<Language, Translations> = {
   th: {
-    appName: 'กรอบรูปหรู ReptileHiso',
+    appName: 'กรอบรูปงานเกษียณ',
     appSub: 'ใส่รูปในกรอบรูปหรู ปรับตำแหน่ง ซูม และดาวน์โหลดได้ง่ายๆ',
     upload: 'ใส่รูปภาพ',
     uploadDesc: 'เลือกรูปภาพจากเครื่องของคุณ',

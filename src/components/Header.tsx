@@ -62,7 +62,7 @@ export function Header({
             <h1 className="text-sm sm:text-lg font-bold tracking-tight text-slate-900 truncate">
               {lang === 'th' ? (
                 <>
-                  ReptileHiso <span className="text-indigo-600 font-semibold">กรอบรูปหรู</span>
+                  กรอบรูปภาพงานเกษียณ <span className="text-indigo-600 font-semibold"></span>
                 </>
               ) : (
                 <>
@@ -71,7 +71,7 @@ export function Header({
               )}
             </h1>
             <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 shrink-0">
-              ReptileHiso.com
+              <a href="https://epubcraft.com" target='_blank'>Sponsored</a>
             </span>
           </div>
           <p className="text-[11px] text-slate-500 hidden sm:block truncate">

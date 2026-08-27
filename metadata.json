@@ -1,0 +1,6 @@
+{
+  "name": "MemoryFrame Studio",
+  "description": "Client-side interactive picture framing and gallery wall studio with real-time realignment, filters, confetti export, and mobile touch gestures.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

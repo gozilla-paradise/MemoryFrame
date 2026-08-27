@@ -1,14 +1,19 @@
-export interface FrameAperture {
+export interface FrameRect {
   // Percentage coordinates within the canvas (0 to 1)
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+export interface FrameAperture extends FrameRect {
   borderRadius?: number;
   aspectRatio?: number; // width / height of opening
 }
 
 export type FrameCategory = 'gallery_wall' | 'standalone' | 'modern' | 'vintage' | 'polaroid';
+export type SceneImageStatus = 'loading' | 'ready' | 'error';
+
 
 export type FilterPreset =
   | 'original'
@@ -48,6 +53,10 @@ export interface FrameTemplate {
   spotlightY?: number;
   hasDrapery?: boolean;
   hasWoodFloor?: boolean;
+  embeddedScene?: {
+    src: string;
+    frameBounds: FrameRect;
+  };
   defaultText?: GalleryTextItem;
   defaultMatting?: {
     enabled: boolean;

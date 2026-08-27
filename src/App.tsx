@@ -5,6 +5,7 @@ import {
   PhotoFilters,
   MattingSettings,
   GalleryTextItem,
+  SceneImageStatus,
 } from './types/frame';
 import { FRAME_TEMPLATES } from './utils/frameTemplates';
 import { calculateInitialCoverTransform } from './utils/canvasRenderer';
@@ -31,6 +32,11 @@ export default function App() {
   const [selectedTemplate, setSelectedTemplate] = useState<FrameTemplate>(FRAME_TEMPLATES[0]);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [sceneImage, setSceneImage] = useState<HTMLImageElement | null>(null);
+  const [sceneImageStatus, setSceneImageStatus] = useState<SceneImageStatus>(
+    selectedTemplate.embeddedScene ? 'loading' : 'ready'
+  );
+  const [sceneImageAttempt, setSceneImageAttempt] = useState(0);
 
   const [transform, setTransform] = useState<PhotoTransform>({
     x: 0,
@@ -81,6 +87,39 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const t = translations[lang];
+  useEffect(() => {
+    const src = selectedTemplate.embeddedScene?.src;
+    if (!src) {
+      setSceneImage(null);
+      setSceneImageStatus('ready');
+      return;
+    }
+
+    setSceneImage(null);
+    setSceneImageStatus('loading');
+
+    let cancelled = false;
+    const nextSceneImage = new Image();
+    nextSceneImage.onload = () => {
+      if (!cancelled) {
+        setSceneImage(nextSceneImage);
+        setSceneImageStatus('ready');
+      }
+    };
+    nextSceneImage.onerror = () => {
+      if (!cancelled) {
+        setSceneImage(null);
+        setSceneImageStatus('error');
+        console.error(`Unable to load frame scene: ${src}`);
+      }
+    };
+    nextSceneImage.src = src;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTemplate.embeddedScene?.src, sceneImageAttempt]);
+
 
   // Load a starter sample image initially
   useEffect(() => {
@@ -264,6 +303,7 @@ export default function App() {
             lang={lang}
             isSimpleMode={isSimpleMode}
             image={image}
+            sceneImage={sceneImage}
             template={selectedTemplate}
             transform={transform}
             filters={filters}
@@ -419,6 +459,9 @@ export default function App() {
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         image={image}
+        sceneImage={sceneImage}
+        sceneImageStatus={sceneImageStatus}
+        onRetrySceneImage={() => setSceneImageAttempt((attempt) => attempt + 1)}
         template={selectedTemplate}
         transform={transform}
         filters={filters}

@@ -25,6 +25,7 @@ interface CanvasStageProps {
   lang: Language;
   isSimpleMode: boolean;
   image: HTMLImageElement | null;
+  sceneImage: HTMLImageElement | null;
   template: FrameTemplate;
   transform: PhotoTransform;
   filters: PhotoFilters;
@@ -41,6 +42,7 @@ export function CanvasStage({
   lang,
   isSimpleMode,
   image,
+  sceneImage,
   template,
   transform,
   filters,
@@ -105,6 +107,7 @@ export function CanvasStage({
     renderGalleryCanvas({
       canvas,
       image,
+      sceneImage,
       template,
       transform,
       filters,
@@ -114,7 +117,7 @@ export function CanvasStage({
       scaleFactor: 1,
       drawGuides: showGuides,
     });
-  }, [image, template, transform, filters, matting, customText, showGuides]);
+  }, [image, sceneImage, template, transform, filters, matting, customText, showGuides]);
 
   // Drag & drop file handling on workspace
   const handleDragOver = (e: React.DragEvent) => {

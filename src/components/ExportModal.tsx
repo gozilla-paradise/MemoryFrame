@@ -8,8 +8,9 @@ import {
   ExportMode,
   ExportFormat,
   ExportResolution,
+  SceneImageStatus,
 } from '../types/frame';
-import { renderGalleryCanvas } from '../utils/canvasRenderer';
+import { calculateRenderViewport, renderGalleryCanvas } from '../utils/canvasRenderer';
 import { triggerExportConfetti } from '../utils/confetti';
 import { translations, Language } from '../utils/i18n';
 import {
@@ -29,6 +30,9 @@ interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   image: HTMLImageElement | null;
+  sceneImage: HTMLImageElement | null;
+  sceneImageStatus: SceneImageStatus;
+  onRetrySceneImage: () => void;
   template: FrameTemplate;
   transform: PhotoTransform;
   filters: PhotoFilters;
@@ -41,6 +45,9 @@ export function ExportModal({
   isOpen,
   onClose,
   image,
+  sceneImage,
+  sceneImageStatus,
+  onRetrySceneImage,
   template,
   transform,
   filters,
@@ -55,15 +62,24 @@ export function ExportModal({
   const [copied, setCopied] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sceneUnavailable =
+    Boolean(template.embeddedScene) && (sceneImageStatus !== 'ready' || !sceneImage);
+
 
   // Generate preview when modal opens or settings change
   const generatePreview = useCallback(() => {
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
+    if (sceneUnavailable) {
+      setPreviewUrl('');
+      return;
+    }
+
 
     renderGalleryCanvas({
       canvas,
       image,
+      sceneImage,
       template,
       transform,
       filters,
@@ -75,7 +91,18 @@ export function ExportModal({
     });
 
     setPreviewUrl(canvas.toDataURL(format, 0.9));
-  }, [image, template, transform, filters, matting, customText, exportMode, format]);
+  }, [
+    image,
+    sceneImage,
+    sceneUnavailable,
+    template,
+    transform,
+    filters,
+    matting,
+    customText,
+    exportMode,
+    format,
+  ]);
 
   useEffect(() => {
     if (isOpen) {
@@ -86,14 +113,21 @@ export function ExportModal({
   }, [isOpen, generatePreview]);
 
   if (!isOpen) return null;
+  const exportViewport = calculateRenderViewport(template, exportMode, resolution);
+
 
   // Render high-res canvas to blob
   const generateExportBlob = async (scale: number, mimeType: string): Promise<Blob> => {
+    if (sceneUnavailable) {
+      throw new Error('Frame scene is not ready for export');
+    }
+
     return new Promise((resolve, reject) => {
       const exportCanvas = document.createElement('canvas');
       renderGalleryCanvas({
         canvas: exportCanvas,
         image,
+        sceneImage,
         template,
         transform,
         filters,
@@ -125,7 +159,7 @@ export function ExportModal({
 
       const blob = await generateExportBlob(resolution, format);
       const ext = format === 'image/png' ? 'png' : format === 'image/jpeg' ? 'jpg' : 'webp';
-      const filename = `ReptileHiso_Frame_${template.id}_${Date.now()}.${ext}`;
+      const filename = `Frame_${template.id}_${Date.now()}.${ext}`;
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -170,12 +204,12 @@ export function ExportModal({
       triggerExportConfetti();
 
       const blob = await generateExportBlob(1.5, 'image/png');
-      const file = new File([blob], 'ReptileHiso_Frame.png', { type: 'image/png' });
+      const file = new File([blob], 'Frame.png', { type: 'image/png' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: 'รูปภาพกรอบหรู ReptileHiso',
-          text: 'ดูรูปภาพในกรอบรูปสวยหรูที่ฉันทำไว้สิ!',
+          title: 'รูปภาพงานเกษียณ',
+          text: 'ดูรูปภาพงานเกษียณที่ฉันทำไว้สิ!',
           files: [file],
         });
       } else {
@@ -223,7 +257,21 @@ export function ExportModal({
           {/* Left Column: Live Export Preview */}
           <div className="lg:col-span-7 flex flex-col items-center justify-center bg-slate-900 rounded-2xl border border-slate-800 p-3 sm:p-4">
             <div className="relative max-h-[35vh] sm:max-h-[44vh] flex items-center justify-center rounded-xl overflow-hidden shadow-2xl">
-              {previewUrl ? (
+              {sceneImageStatus === 'error' && template.embeddedScene ? (
+                <div className="w-64 h-64 px-6 flex flex-col items-center justify-center gap-3 text-center text-slate-300">
+                  <span>
+                    {lang === 'th'
+                      ? 'โหลดกรอบรูปไม่สำเร็จ'
+                      : 'The frame image could not be loaded.'}
+                  </span>
+                  <button
+                    onClick={onRetrySceneImage}
+                    className="rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20 cursor-pointer"
+                  >
+                    {lang === 'th' ? 'ลองอีกครั้ง' : 'Try again'}
+                  </button>
+                </div>
+              ) : previewUrl ? (
                 <img
                   src={previewUrl}
                   alt="Export Preview"
@@ -240,15 +288,9 @@ export function ExportModal({
               <span className="text-[11px] text-slate-400">
                 ขนาดภาพ:{' '}
                 <span className="font-mono text-indigo-300 font-semibold">
-                  {exportMode === 'full_scene'
-                    ? `${template.canvasWidth * resolution} × ${template.canvasHeight * resolution} px`
-                    : exportMode === 'frame_only'
-                    ? `${Math.round(template.canvasWidth * 0.45 * resolution)} × ${Math.round(
-                        template.canvasHeight * 0.65 * resolution
-                      )} px`
-                    : `${Math.round(template.aperture.width * template.canvasWidth * resolution)} × ${Math.round(
-                        template.aperture.height * template.canvasHeight * resolution
-                      )} px`}
+                  {`${Math.round(exportViewport.targetWidth)} × ${Math.round(
+                    exportViewport.targetHeight
+                  )} px`}
                 </span>
               </span>
             </div>
@@ -260,7 +302,7 @@ export function ExportModal({
             <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
               <button
                 onClick={handleDownload}
-                disabled={isExporting}
+                disabled={isExporting || sceneUnavailable}
                 className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Download className="w-5 h-5" />
@@ -270,7 +312,7 @@ export function ExportModal({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleCopyClipboard}
-                  disabled={isExporting}
+                  disabled={isExporting || sceneUnavailable}
                   className="py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-indigo-600" />}
@@ -279,7 +321,7 @@ export function ExportModal({
 
                 <button
                   onClick={handleShare}
-                  disabled={isExporting}
+                  disabled={isExporting || sceneUnavailable}
                   className="py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
                 >
                   <Share2 className="w-4 h-4 text-indigo-600" />

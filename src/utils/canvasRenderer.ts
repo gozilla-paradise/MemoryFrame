@@ -10,6 +10,7 @@ import {
 interface RenderOptions {
   canvas: HTMLCanvasElement;
   image: HTMLImageElement | null;
+  sceneImage: HTMLImageElement | null;
   template: FrameTemplate;
   transform: PhotoTransform;
   filters: PhotoFilters;
@@ -62,9 +63,65 @@ export function calculateInitialContainTransform(
   };
 }
 
+interface RenderViewport {
+  targetWidth: number;
+  targetHeight: number;
+  cropOffsetX: number;
+  cropOffsetY: number;
+}
+
+export function calculateRenderViewport(
+  template: FrameTemplate,
+  exportMode: ExportMode = 'full_scene',
+  scaleFactor = 1
+): RenderViewport {
+  const baseW = template.canvasWidth;
+  const baseH = template.canvasHeight;
+  const rawApX = template.aperture.x * baseW;
+  const rawApY = template.aperture.y * baseH;
+  const rawApW = template.aperture.width * baseW;
+  const rawApH = template.aperture.height * baseH;
+
+  let targetWidth = baseW * scaleFactor;
+  let targetHeight = baseH * scaleFactor;
+  let cropOffsetX = 0;
+  let cropOffsetY = 0;
+
+  if (exportMode === 'frame_only') {
+    if (template.embeddedScene) {
+      const bounds = template.embeddedScene.frameBounds;
+      cropOffsetX = bounds.x * baseW;
+      cropOffsetY = bounds.y * baseH;
+      targetWidth = bounds.width * baseW * scaleFactor;
+      targetHeight = bounds.height * baseH * scaleFactor;
+    } else {
+      const frameBorderThickness = Math.max(rawApW, rawApH) * 0.16;
+      const frameOuterX = rawApX - frameBorderThickness;
+      const frameOuterY = rawApY - frameBorderThickness;
+      const frameOuterW = rawApW + frameBorderThickness * 2;
+      const frameOuterH = rawApH + frameBorderThickness * 2;
+      const shadowMargin = frameBorderThickness * 0.4;
+      cropOffsetX = Math.max(0, frameOuterX - shadowMargin);
+      cropOffsetY = Math.max(0, frameOuterY - shadowMargin);
+      targetWidth =
+        Math.min(baseW - cropOffsetX, frameOuterW + shadowMargin * 2) * scaleFactor;
+      targetHeight =
+        Math.min(baseH - cropOffsetY, frameOuterH + shadowMargin * 2) * scaleFactor;
+    }
+  } else if (exportMode === 'inner_artwork') {
+    cropOffsetX = rawApX;
+    cropOffsetY = rawApY;
+    targetWidth = rawApW * scaleFactor;
+    targetHeight = rawApH * scaleFactor;
+  }
+
+  return { targetWidth, targetHeight, cropOffsetX, cropOffsetY };
+}
+
 export function renderGalleryCanvas({
   canvas,
   image,
+  sceneImage,
   template,
   transform,
   filters,
@@ -76,41 +133,14 @@ export function renderGalleryCanvas({
 }: RenderOptions): void {
   const baseW = template.canvasWidth;
   const baseH = template.canvasHeight;
-
-  // Compute bounding box for export modes
   const rawApX = template.aperture.x * baseW;
   const rawApY = template.aperture.y * baseH;
   const rawApW = template.aperture.width * baseW;
   const rawApH = template.aperture.height * baseH;
-
-  // Frame outer dimensions
   const frameBorderThickness = Math.max(rawApW, rawApH) * 0.16;
-  const frameOuterX = rawApX - frameBorderThickness;
-  const frameOuterY = rawApY - frameBorderThickness;
-  const frameOuterW = rawApW + frameBorderThickness * 2;
-  const frameOuterH = rawApH + frameBorderThickness * 2;
 
-  let targetWidth = baseW * scaleFactor;
-  let targetHeight = baseH * scaleFactor;
-  let cropOffsetX = 0;
-  let cropOffsetY = 0;
-
-  if (exportMode === 'frame_only') {
-    // Add small margin around the frame for drop shadow
-    const shadowMargin = frameBorderThickness * 0.4;
-    cropOffsetX = Math.max(0, frameOuterX - shadowMargin);
-    cropOffsetY = Math.max(0, frameOuterY - shadowMargin);
-    const cropW = Math.min(baseW - cropOffsetX, frameOuterW + shadowMargin * 2);
-    const cropH = Math.min(baseH - cropOffsetY, frameOuterH + shadowMargin * 2);
-
-    targetWidth = cropW * scaleFactor;
-    targetHeight = cropH * scaleFactor;
-  } else if (exportMode === 'inner_artwork') {
-    cropOffsetX = rawApX;
-    cropOffsetY = rawApY;
-    targetWidth = rawApW * scaleFactor;
-    targetHeight = rawApH * scaleFactor;
-  }
+  const { targetWidth, targetHeight, cropOffsetX, cropOffsetY } =
+    calculateRenderViewport(template, exportMode, scaleFactor);
 
   canvas.width = Math.round(targetWidth);
   canvas.height = Math.round(targetHeight);
@@ -126,31 +156,34 @@ export function renderGalleryCanvas({
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // 1. DRAW WALL & BACKGROUND
-  drawWallBackground(ctx, baseW, baseH, template);
+  if (template.embeddedScene) {
+    if (sceneImage) {
+      ctx.drawImage(sceneImage, 0, 0, baseW, baseH);
+    } else {
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, baseW, baseH);
+    }
+  } else {
+    drawWallBackground(ctx, baseW, baseH, template);
 
-  // 2. DRAW DRAPERY (Origami sculpture on the left for Navy theme)
-  if (template.hasDrapery) {
-    drawDraperyOrigami(ctx, baseW, baseH);
+    if (template.hasDrapery) {
+      drawDraperyOrigami(ctx, baseW, baseH);
+    }
+
+    if (template.hasWoodFloor) {
+      drawWoodFloor(ctx, baseW, baseH, template);
+    }
+
+    if (template.hasSpotlight) {
+      drawSpotlightOverlay(ctx, baseW, baseH, template);
+    }
+
+    if (customText.showText && exportMode === 'full_scene') {
+      drawGalleryTypography(ctx, baseW, baseH, customText, template);
+    }
+
+    drawFrameDropShadow(ctx, rawApX, rawApY, rawApW, rawApH, frameBorderThickness);
   }
-
-  // 3. DRAW WOODEN FLOOR & BASEBOARD
-  if (template.hasWoodFloor) {
-    drawWoodFloor(ctx, baseW, baseH, template);
-  }
-
-  // 4. DRAW SPOTLIGHT CONE & AMBIENT LIGHT
-  if (template.hasSpotlight) {
-    drawSpotlightOverlay(ctx, baseW, baseH, template);
-  }
-
-  // 5. DRAW GALLERY WALL TEXT
-  if (customText.showText && exportMode === 'full_scene') {
-    drawGalleryTypography(ctx, baseW, baseH, customText, template);
-  }
-
-  // 6. DRAW FRAME DROP SHADOW
-  drawFrameDropShadow(ctx, rawApX, rawApY, rawApW, rawApH, frameBorderThickness);
 
   // 7. COMPUTE MATTING APERTURE
   let picClipX = rawApX;
@@ -203,11 +236,26 @@ export function renderGalleryCanvas({
 
   ctx.restore();
 
-  // 9. DRAW ORNATE FRAME
-  drawFrameBorder(ctx, rawApX, rawApY, rawApW, rawApH, frameBorderThickness, template.frameStyle);
-
-  // 10. LIGHTING ACCENTS ON FRAME (Gold leaf reflections & spotlight sheen)
-  drawFrameLightingReflections(ctx, rawApX, rawApY, rawApW, rawApH, frameBorderThickness, template);
+  if (!template.embeddedScene) {
+    drawFrameBorder(
+      ctx,
+      rawApX,
+      rawApY,
+      rawApW,
+      rawApH,
+      frameBorderThickness,
+      template.frameStyle
+    );
+    drawFrameLightingReflections(
+      ctx,
+      rawApX,
+      rawApY,
+      rawApW,
+      rawApH,
+      frameBorderThickness,
+      template
+    );
+  }
 
   ctx.restore();
 }
